@@ -1,0 +1,10 @@
+# requirements.txt (AFTER)
+
+streamlit
+tensorflow
+numpy
+pandas
+scikit-learn
+joblib  # <-- ADD THIS LINE
+yfinance
+matplotlib
