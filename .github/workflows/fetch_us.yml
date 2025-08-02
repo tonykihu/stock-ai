@@ -3,6 +3,7 @@ on:
   schedule:
     - cron: '0 18 * * *'  # 6 PM UTC (after market close)
   workflow_dispatch:  # Allow manual runs
+
 jobs:
   fetch:
     runs-on: ubuntu-latest
@@ -17,16 +18,17 @@ jobs:
           python-version: '3.11'
 
       - name: Verify Python
-        run: python --version  # Should show 3.11.x
+        run: python --version
 
       - name: Install dependencies
         run: pip install yfinance pandas
 
-      - name: Debug directory structure  # Optional debug
+      - name: Debug directory structure
         run: ls -R
 
       - name: Run script
         run: python scripts/fetch_us_stocks.py
+
       - name: Commit changes
         run: |
           git config --global user.name "GitHub Actions"
@@ -35,15 +37,14 @@ jobs:
           git commit -m "Auto-update US stock data" || echo "No changes"
           git push
 
-
-          - name: Notify on failure
-          if: failure()
-          uses: actions/github-script@v6
-          with:
-            script: |
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: "🚨 Pipeline failed! Check logs."
-              })
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "🚨 Pipeline failed! Check logs."
+            })
