@@ -2,7 +2,7 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime
 
-TICKERS = ["AAPL", "MSFT", "GOOGL"] # Add more as needed
+TICKERS = ["AAPL", "MSFT", "GOOGL", "NVDA", "TSLA", "INTC", "GC00", "SOXS"] # Add more as needed
 DATA_DIR = "data/us/"
 
 def fetch_data(ticker, years=1): # Fetch data for the last # years
