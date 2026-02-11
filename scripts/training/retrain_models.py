@@ -20,14 +20,18 @@ def retrain_hybrid_model():
         tech_data = pd.read_csv("data/processed/features.csv")
         sentiment = pd.read_csv("data/processed/news_sentiment.csv")
 
-        # Merge data on Date
-        merged = pd.merge(tech_data, sentiment, on="Date")
+        # Average sentiment per date (in case multiple headlines per day)
+        sentiment_daily = sentiment.groupby("Date", as_index=False)["sentiment_score"].mean()
+
+        # Left merge so all feature rows are kept; fill missing sentiment with neutral 0.5
+        merged = pd.merge(tech_data, sentiment_daily, on="Date", how="left")
+        merged["sentiment_score"] = merged["sentiment_score"].fillna(0.5)
 
         # Create target if it doesn't exist
         if "Target" not in merged.columns:
             merged["Target"] = (merged["Close"].shift(-1) > merged["Close"]).astype(int)
 
-        # Drop the last row (NaN target from shift) and any other NaN rows
+        # Drop rows with NaN (from shift and missing technical indicators during warmup)
         merged = merged.dropna(subset=["rsi_14", "sma_50", "sentiment_score", "Target"])
 
         # Prepare features (aligned X and y from the same DataFrame)

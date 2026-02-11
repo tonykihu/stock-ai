@@ -21,7 +21,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Retrain models
-        run: python scripts/retrain_models.py
+        run: python scripts/training/retrain_models.py
 
       - name: Commit changes
         run: |

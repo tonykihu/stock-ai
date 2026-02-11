@@ -15,11 +15,11 @@ def load_models():
     try:
         models["technical"] = joblib.load("models/technical_model.pkl")
     except FileNotFoundError:
-        st.warning("Technical model not found. Train it first with: python models/train_technical.py")
+        st.warning("Technical model not found. Train it first with: python scripts/training/train_technical.py")
     try:
         models["hybrid"] = joblib.load("models/hybrid_model.pkl")
     except FileNotFoundError:
-        st.warning("Hybrid model not found. Train it first with: python models/train_hybrid.py")
+        st.warning("Hybrid model not found. Train it first with: python scripts/training/train_hybrid.py")
     return models
 
 models = load_models()
@@ -40,6 +40,7 @@ def fetch_latest_data(ticker):
         return pd.DataFrame({
             "rsi_14": [45.0],
             "sma_50": [15.50],
+            "volume_obv": [0.0],
             "sentiment_score": [0.6]
         })
     else:
@@ -51,6 +52,7 @@ def fetch_latest_data(ticker):
 
         data["rsi_14"] = compute_rsi(data["Close"])
         data["sma_50"] = data["Close"].rolling(50).mean()
+        data["volume_obv"] = (np.sign(data["Close"].diff()) * data["Volume"]).cumsum()
         return data.iloc[-1:].reset_index()
 
 # --- UI ---
@@ -70,7 +72,7 @@ data = fetch_latest_data(ticker)
 # Predict
 if data is not None:
     if model_type == "Technical Only" and "technical" in models:
-        features = data[["rsi_14", "sma_50"]].dropna()
+        features = data[["rsi_14", "sma_50", "volume_obv"]].dropna()
         if not features.empty:
             prediction = models["technical"].predict(features)
             st.metric("Signal", "BUY" if prediction[0] == 1 else "HOLD/SELL")

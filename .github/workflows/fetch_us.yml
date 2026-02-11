@@ -24,7 +24,7 @@ jobs:
         run: mkdir -p data/us
 
       - name: Run script
-        run: python scripts/fetch_us_stocks.py
+        run: python scripts/fetching/fetch_us_stocks.py
 
       - name: Commit changes
         run: |
