@@ -1,15 +1,13 @@
 # GitHub Actions workflow for Continuous Integration (CI)
-# This workflow runs checks on your code but does not handle deployment.
 # Deployment is handled automatically by Streamlit Community Cloud when you push to the main branch.
 
 name: Code Quality Check
 
-# Run this workflow on every push to the main branch and on every pull request
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 jobs:
   build:
@@ -17,36 +15,24 @@ jobs:
 
     strategy:
       matrix:
-        # Test against a specific Python version
-        python-version: ["3.9"]
+        python-version: ["3.11"]
 
     steps:
-      # 1. Check out your repository code
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Set up the specified Python version
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      # 3. Install project dependencies from requirements.txt
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      
-      # 4. (Optional but Recommended) Lint with a code checker like Flake8
-      # First, you would need to add flake8 to your requirements.txt
-      # - name: Lint with flake8
-      #   run: |
-      #     # stop the build if there are Python syntax errors or undefined names
-      #     flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-      #     # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-      #     flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-      # 5. A simple check to ensure the streamlit command works
       - name: Check Streamlit Version
-        run: |
-          streamlit --version
+        run: streamlit --version
+
+      - name: Check Python syntax
+        run: python -m py_compile app.py

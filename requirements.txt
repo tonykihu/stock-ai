@@ -1,10 +1,28 @@
-# requirements.txt (AFTER)
-
+# Core
 streamlit
-tensorflow
-numpy
 pandas
+numpy
 scikit-learn
-joblib  # <-- ADD THIS LINE
-yfinance
+joblib
 matplotlib
+
+# Data fetching
+yfinance
+requests
+beautifulsoup4
+
+# Technical analysis
+ta
+
+# Sentiment analysis
+transformers
+torch
+
+# ML framework
+tensorflow
+
+# Dashboard charts
+plotly
+
+# Google Sheets (optional)
+gspread
