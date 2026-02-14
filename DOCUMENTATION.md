@@ -388,8 +388,19 @@ The dashboard auto-discovers available tickers from `data/processed/features.csv
 
 ### 8.3 Charts
 
-- **US tickers:** Live 1-month price chart via `yf.download(ticker, period="1mo")`
-- **Kenya tickers:** Historical chart from last 60 days of `features.csv`
+Charts include a **period selector dropdown** with six options:
+
+| Period | US (yfinance) | Kenya (features.csv) |
+|--------|---------------|----------------------|
+| 1 Week | `period="5d"` | Last 5 rows |
+| 1 Month | `period="1mo"` | Last 21 rows |
+| 3 Months (default) | `period="3mo"` | Last 63 rows |
+| 6 Months | `period="6mo"` | Last 126 rows |
+| 1 Year | `period="1y"` | Last 252 rows |
+| All Data | `period="5y"` | All available rows |
+
+- **US tickers:** Fetches live data from yfinance for the selected period
+- **Kenya tickers:** Shows historical data from `features.csv`, sliced by `tail(n_days)`
 
 ### 8.4 Additional Features
 
@@ -794,7 +805,7 @@ python scripts/preprocessing/preprocess_data.py
 
 | Area | Lines / Size |
 |------|-------------|
-| `app.py` | 268 lines |
+| `app.py` | 302 lines |
 | `scripts/` | 1,551+ lines |
 | `utils/` | ~450 lines |
 | `tests/` | 5 files |

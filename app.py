@@ -218,24 +218,59 @@ if data is not None:
     else:
         st.info("Model not available. Please train the model first.")
 
-    # Show price chart
+    # --- Price Chart ---
+    st.subheader(f"{selected_ticker} Price Chart")
+
+    # Period selector
+    period_options = {
+        "1 Week": 5,
+        "1 Month": 21,
+        "3 Months": 63,
+        "6 Months": 126,
+        "1 Year": 252,
+        "All Data": None,
+    }
+    # Map to yfinance period strings for US live data
+    yf_period_map = {
+        "1 Week": "5d",
+        "1 Month": "1mo",
+        "3 Months": "3mo",
+        "6 Months": "6mo",
+        "1 Year": "1y",
+        "All Data": "5y",
+    }
+    selected_period = st.selectbox("Chart Period", list(period_options.keys()), index=2)
+    n_days = period_options[selected_period]
+
     if selected_country != "Kenya":
-        chart_data = yf.download(selected_ticker, period="1mo")
+        # US: fetch live data from yfinance for the selected period
+        yf_period = yf_period_map[selected_period]
+        chart_data = yf.download(selected_ticker, period=yf_period)
         if not chart_data.empty:
             if isinstance(chart_data.columns, pd.MultiIndex):
                 chart_data.columns = chart_data.columns.get_level_values(0)
+            chart_data = chart_data.reset_index()
+            chart_data["Date"] = pd.to_datetime(chart_data["Date"])
+            chart_data = chart_data.set_index("Date")
             st.line_chart(chart_data["Close"])
+        else:
+            st.info(f"No chart data available for {selected_ticker}")
     else:
-        # Kenya: show historical from features.csv
+        # Kenya: show from features.csv
         if os.path.exists(FEATURES_PATH):
             hist = pd.read_csv(FEATURES_PATH)
-            hist = hist[hist["Ticker"] == selected_ticker].tail(60)
+            hist = hist[hist["Ticker"] == selected_ticker].copy()
+            hist["Date"] = pd.to_datetime(hist["Date"])
+            hist = hist.sort_values("Date")
+            if n_days is not None:
+                hist = hist.tail(n_days)
             if not hist.empty:
-                hist["Date"] = pd.to_datetime(hist["Date"])
                 hist = hist.set_index("Date")
                 st.line_chart(hist["Close"])
             else:
                 st.info(f"No historical chart data for {selected_ticker}")
+        else:
+            st.info("Run preprocessing first to see Kenya charts.")
 
 # --- Upload NSE Data ---
 st.subheader("Upload NSE Kenya Data")

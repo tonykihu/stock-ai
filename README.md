@@ -75,7 +75,7 @@ A Streamlit web app with a **dynamic sidebar** for filtering:
 - **Ticker selector** - Shows only tickers with processed data, displayed as "AAPL - Apple"
 - Model selection (Technical or Hybrid)
 - Real-time buy/sell signals
-- Price charts (live for US, historical for Kenya)
+- Interactive price charts with period selector (1W, 1M, 3M, 6M, 1Y, All) — live data for US, historical for Kenya
 - CSV upload for custom NSE data
 - Email and Discord alert configuration
 
