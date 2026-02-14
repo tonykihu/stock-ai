@@ -129,36 +129,35 @@ def build_sidebar_filters(available_tickers, ticker_markets):
     return selected_ticker, selected_country
 
 
+def fetch_latest_from_features(ticker):
+    """Load the most recent row for a ticker from features.csv."""
+    if not os.path.exists(FEATURES_PATH):
+        return None
+    df = pd.read_csv(FEATURES_PATH)
+    df = df[df["Ticker"] == ticker].copy()
+    if df.empty:
+        return None
+    df = df.sort_values("Date")
+    return df.iloc[-1:].reset_index(drop=True)
+
+
 def fetch_latest_data(ticker, country):
     """Fetch latest stock data and compute all features."""
     if country == "Kenya":
-        # Try yfinance with .NR suffix for Nairobi
-        yf_ticker = f"{ticker}.NR"
-        data = yf.download(yf_ticker, period="6mo")
-        if data.empty:
-            # Fallback: mock data (replace with real NSE source later)
-            mock = pd.DataFrame({
-                "Date": [pd.Timestamp.now()],
-                "Close": [15.50],
-                "High": [16.00],
-                "Low": [15.00],
-                "Volume": [1000000.0],
-                "sentiment_score": [0.5],
-            })
-            mock = compute_features(mock)
-            return mock.iloc[-1:].reset_index(drop=True)
-
-        if isinstance(data.columns, pd.MultiIndex):
-            data.columns = data.columns.get_level_values(0)
-        data = data.reset_index()
-        if "Date" not in data.columns and "index" in data.columns:
-            data = data.rename(columns={"index": "Date"})
-        data = compute_features(data)
-        return data.iloc[-1:].reset_index(drop=True)
+        # Kenya: use preprocessed features.csv (yfinance doesn't cover NSE well)
+        data = fetch_latest_from_features(ticker)
+        if data is not None:
+            return data
+        st.warning(f"No processed data for {ticker}. Run preprocessing first.")
+        return None
     else:
-        # US ticker
+        # US ticker — fetch live data from yfinance
         data = yf.download(ticker, period="6mo")
         if data.empty:
+            # Fallback: try features.csv
+            data = fetch_latest_from_features(ticker)
+            if data is not None:
+                return data
             st.error(f"No data returned for {ticker}")
             return None
 
