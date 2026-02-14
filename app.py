@@ -1,10 +1,10 @@
 import os
-import numpy as np
 import streamlit as st
 import pandas as pd
 import joblib
 import yfinance as yf
 from datetime import datetime
+from utils.features import compute_features, TECHNICAL_FEATURES, HYBRID_FEATURES
 from utils.alerts import send_email_alert, send_discord_alert
 
 # --- Load models safely ---
@@ -24,36 +24,39 @@ def load_models():
 
 models = load_models()
 
-# --- Helper functions ---
-def compute_rsi(prices, period=14):
-    """Calculate RSI from price series."""
-    delta = prices.diff()
-    gain = delta.clip(lower=0).rolling(window=period).mean()
-    loss = (-delta.clip(upper=0)).rolling(window=period).mean()
-    rs = gain / loss.replace(0, np.nan)
-    return 100 - (100 / (1 + rs))
 
 def fetch_latest_data(ticker):
-    """Fetch latest stock data and compute indicators."""
+    """Fetch latest stock data and compute all features."""
     if ".NSE" in ticker:
         # Kenyan ticker - return mock data (replace with real NSE data source)
-        return pd.DataFrame({
-            "rsi_14": [45.0],
-            "sma_50": [15.50],
-            "volume_obv": [0.0],
-            "sentiment_score": [0.6]
+        mock = pd.DataFrame({
+            "Date": [pd.Timestamp.now()],
+            "Close": [15.50],
+            "High": [16.00],
+            "Low": [15.00],
+            "Volume": [1000000.0],
+            "sentiment_score": [0.5],
         })
+        mock = compute_features(mock)
+        return mock.iloc[-1:].reset_index(drop=True)
     else:
-        # US ticker - fetch 3 months for enough data for SMA-50
-        data = yf.download(ticker, period="3mo")
+        # US ticker - fetch 6 months for indicator warmup (SMA-50 needs 50+ bars)
+        data = yf.download(ticker, period="6mo")
         if data.empty:
             st.error(f"No data returned for {ticker}")
             return None
 
-        data["rsi_14"] = compute_rsi(data["Close"])
-        data["sma_50"] = data["Close"].rolling(50).mean()
-        data["volume_obv"] = (np.sign(data["Close"].diff()) * data["Volume"]).cumsum()
-        return data.iloc[-1:].reset_index()
+        # Flatten multi-level columns from yfinance (e.g. ('Close','AAPL') -> 'Close')
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.get_level_values(0)
+
+        data = data.reset_index()
+        if "Date" not in data.columns and "index" in data.columns:
+            data = data.rename(columns={"index": "Date"})
+
+        data = compute_features(data)
+        return data.iloc[-1:].reset_index(drop=True)
+
 
 # --- UI ---
 st.title("AI Stock Signal Dashboard")
@@ -72,18 +75,19 @@ data = fetch_latest_data(ticker)
 # Predict
 if data is not None:
     if model_type == "Technical Only" and "technical" in models:
-        features = data[["rsi_14", "sma_50", "volume_obv"]].dropna()
-        if not features.empty:
+        available = [f for f in TECHNICAL_FEATURES if f in data.columns]
+        features = data[available].dropna()
+        if not features.empty and len(available) == len(TECHNICAL_FEATURES):
             prediction = models["technical"].predict(features)
             st.metric("Signal", "BUY" if prediction[0] == 1 else "HOLD/SELL")
         else:
             st.warning("Not enough data to compute indicators.")
     elif model_type == "Hybrid (Technical + Sentiment)" and "hybrid" in models:
-        # Add a default sentiment score if not present
         if "sentiment_score" not in data.columns:
             data["sentiment_score"] = 0.5  # Neutral default
-        features = data[["rsi_14", "sma_50", "sentiment_score"]].dropna()
-        if not features.empty:
+        available = [f for f in HYBRID_FEATURES if f in data.columns]
+        features = data[available].dropna()
+        if not features.empty and len(available) == len(HYBRID_FEATURES):
             prediction = models["hybrid"].predict(features)
             st.metric("Signal", "BUY" if prediction[0] == 1 else "HOLD/SELL")
         else:
@@ -95,6 +99,8 @@ if data is not None:
     if ".NSE" not in ticker:
         chart_data = yf.download(ticker, period="1mo")
         if not chart_data.empty:
+            if isinstance(chart_data.columns, pd.MultiIndex):
+                chart_data.columns = chart_data.columns.get_level_values(0)
             st.line_chart(chart_data["Close"])
 
 # --- Upload NSE Data ---

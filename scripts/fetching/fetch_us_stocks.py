@@ -6,7 +6,7 @@ from datetime import datetime
 TICKERS = ["AAPL", "MSFT", "GOOGL", "NVDA", "TSLA", "INTC", "SOXS"]
 DATA_DIR = "data/us/"
 
-def fetch_data(ticker, years=1):
+def fetch_data(ticker, years=5):
     """Fetch historical stock data for a given ticker and save to CSV."""
     end_date = datetime.now().strftime('%Y-%m-%d')
     start_date = (datetime.now() - pd.DateOffset(years=years)).strftime('%Y-%m-%d')

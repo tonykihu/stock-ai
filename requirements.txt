@@ -21,6 +21,9 @@ torch
 # ML framework
 tensorflow
 
+# Model comparison
+xgboost
+
 # Dashboard charts
 plotly
 

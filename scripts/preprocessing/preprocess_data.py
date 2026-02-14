@@ -1,6 +1,12 @@
 import os
+import glob
 import pandas as pd
-from ta import add_all_ta_features
+import sys
+
+# Add project root to path for utils import
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+from utils.features import compute_features, TECHNICAL_FEATURES
+
 
 def load_us_data(file_path):
     """
@@ -23,14 +29,25 @@ def load_us_data(file_path):
 
     return df
 
-def load_kenya_data(file_path):
+
+def load_kenya_ticker(file_path, ticker_code):
     """
-    Load Kenya NSE CSV data.
-    Columns: DATE, CODE, NAME, Day Price, Volume, etc.
+    Extract a single Kenya ticker time-series from NSE CSV.
+    Columns: DATE, CODE, NAME, Day Price, Volume, Day High, Day Low, etc.
     """
     df = pd.read_csv(file_path)
 
-    # Standardize column names to match US format
+    if "CODE" not in df.columns:
+        print(f"    Skipping {os.path.basename(file_path)} — no CODE column (different format)")
+        return pd.DataFrame()
+
+    df = df[df["CODE"] == ticker_code].copy()
+
+    if df.empty:
+        print(f"  No data found for Kenya ticker {ticker_code}")
+        return df
+
+    # Standardize column names
     rename_map = {}
     if "DATE" in df.columns:
         rename_map["DATE"] = "Date"
@@ -46,62 +63,98 @@ def load_kenya_data(file_path):
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"], format="%d-%b-%y", errors="coerce")
 
-    # Convert numeric columns
+    # Convert numeric columns (Volume has commas and dashes)
     for col in ["Close", "High", "Low"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
+    if "Volume" in df.columns:
+        df["Volume"] = pd.to_numeric(
+            df["Volume"].astype(str).str.replace(",", ""), errors="coerce"
+        ).fillna(0).astype(float)
+    else:
+        df["Volume"] = 0.0
+
+    df = df.sort_values("Date").reset_index(drop=True)
     return df
+
 
 def preprocess_data():
     """
-    Loads US and Kenya stock data, adds technical indicators,
-    and saves processed features to CSV.
+    Load all US tickers and Kenya data, compute features per ticker,
+    and save to data/processed/features.csv.
     """
     os.makedirs("data/processed", exist_ok=True)
+    all_frames = []
 
-    # Load datasets
-    us_data = load_us_data("data/us/aapl.csv")
-    kenya_data = load_kenya_data("data/kenya/nse_latest.csv")
+    # --- Process all US tickers ---
+    us_files = glob.glob("data/us/*.csv")
+    print(f"Found {len(us_files)} US data files")
 
-    # Tag markets
-    us_data["Market"] = "US"
-    kenya_data["Market"] = "Kenya"
-    combined = pd.concat([us_data, kenya_data], ignore_index=True)
+    for csv_file in us_files:
+        ticker = os.path.basename(csv_file).replace(".csv", "").upper()
+        print(f"  Processing {ticker}...")
 
-    # Save combined raw data
-    combined.to_csv("data/processed/combined.csv", index=False)
+        df = load_us_data(csv_file)
+        if df.empty or "Close" not in df.columns:
+            print(f"    Skipping {ticker} — no data")
+            continue
 
-    # Add technical indicators only for US data (has full OHLCV)
-    us_only = combined[combined["Market"] == "US"].copy()
+        df["Ticker"] = ticker
+        df["Market"] = "US"
 
-    required_cols = ["Open", "High", "Low", "Close", "Volume"]
-    if all(col in us_only.columns for col in required_cols):
-        us_only = us_only.dropna(subset=required_cols)
-        us_only = add_all_ta_features(
-            us_only, open="Open", high="High", low="Low",
-            close="Close", volume="Volume"
-        )
+        # Drop rows missing essential OHLCV data
+        df = df.dropna(subset=["Close", "Volume"])
 
-    # Map ta library column names to our standard names
-    column_mapping = {
-        "momentum_rsi": "rsi_14",
-        "trend_macd": "macd",
-        "trend_sma_fast": "sma_50",
-        "volume_obv": "volume_obv"
-    }
+        if len(df) < 60:
+            print(f"    Skipping {ticker} — only {len(df)} rows (need 60+ for indicators)")
+            continue
 
-    for ta_name, our_name in column_mapping.items():
-        if ta_name in us_only.columns:
-            us_only = us_only.rename(columns={ta_name: our_name})
+        df = compute_features(df)
+        all_frames.append(df)
+        print(f"    {len(df)} rows processed")
 
-    # Keep key features
-    features = ["rsi_14", "macd", "sma_50", "volume_obv"]
-    available_features = [f for f in features if f in us_only.columns]
-    keep_cols = available_features + ["Close", "Market", "Date"]
-    us_only[keep_cols].to_csv("data/processed/features.csv", index=False)
-    print(f"Features saved with columns: {keep_cols}")
-    print(f"Rows: {len(us_only)}")
+    # --- Process Kenya tickers ---
+    kenya_files = glob.glob("data/kenya/nse_*.csv")
+    kenya_tickers = ["SCOM"]  # Add more Kenya tickers here as needed
+
+    for kenya_file in kenya_files:
+        for ticker_code in kenya_tickers:
+            print(f"  Processing Kenya/{ticker_code} from {os.path.basename(kenya_file)}...")
+            df = load_kenya_ticker(kenya_file, ticker_code)
+
+            if df.empty or "Close" not in df.columns:
+                continue
+
+            df["Ticker"] = ticker_code
+            df["Market"] = "Kenya"
+            df = df.dropna(subset=["Close"])
+
+            if len(df) < 60:
+                print(f"    Skipping {ticker_code} — only {len(df)} rows")
+                continue
+
+            df = compute_features(df)
+            all_frames.append(df)
+            print(f"    {len(df)} rows processed")
+
+    if not all_frames:
+        print("ERROR: No data processed!")
+        return
+
+    # Combine all tickers
+    combined = pd.concat(all_frames, ignore_index=True)
+
+    # Keep essential columns + all features
+    keep_cols = ["Date", "Ticker", "Market", "Close"] + TECHNICAL_FEATURES
+    available = [c for c in keep_cols if c in combined.columns]
+    combined[available].to_csv("data/processed/features.csv", index=False)
+
+    print(f"\nFeatures saved to data/processed/features.csv")
+    print(f"  Total rows: {len(combined)}")
+    print(f"  Tickers: {combined['Ticker'].unique().tolist()}")
+    print(f"  Columns: {available}")
+
 
 if __name__ == "__main__":
     preprocess_data()

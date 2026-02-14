@@ -20,6 +20,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Preprocess data
+        run: python scripts/preprocessing/preprocess_data.py
+
       - name: Retrain models
         run: python scripts/training/retrain_models.py
 
