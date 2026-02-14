@@ -1,9 +1,14 @@
 import os
+import sys
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
 
-TICKERS = ["AAPL", "MSFT", "GOOGL", "NVDA", "TSLA", "INTC", "SOXS"]
+# Add project root to path for utils import
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+from utils.tickers import get_tickers_by_country
+
+TICKERS = get_tickers_by_country("US")
 DATA_DIR = "data/us/"
 
 def fetch_data(ticker, years=5):

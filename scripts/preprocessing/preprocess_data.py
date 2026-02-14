@@ -6,6 +6,7 @@ import sys
 # Add project root to path for utils import
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from utils.features import compute_features, TECHNICAL_FEATURES
+from utils.tickers import get_tickers_by_country
 
 
 def load_us_data(file_path):
@@ -130,18 +131,7 @@ def preprocess_data():
 
     # --- Process Kenya tickers ---
     kenya_files = glob.glob("data/kenya/*.csv")
-    kenya_tickers = [
-        "SCOM",   # Safaricom
-        "EQTY",   # Equity Group
-        "KCB",    # KCB Group
-        "ABSA",   # ABSA Bank Kenya
-        "COOP",   # Co-operative Bank
-        "EABL",   # East African Breweries
-        "BAT",    # BAT Kenya
-        "BAMB",   # Bamburi Cement
-        "SCBK",   # Standard Chartered Bank Kenya
-        "NCBA",   # NCBA Group
-    ]
+    kenya_tickers = get_tickers_by_country("Kenya")
 
     for kenya_file in kenya_files:
         for ticker_code in kenya_tickers:
