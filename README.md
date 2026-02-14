@@ -17,9 +17,9 @@ The system supports both **US stocks** (via Yahoo Finance) and **Kenyan NSE stoc
 
 ```
 stock-ai/
-├── app.py                              # Streamlit dashboard
+├── app.py                              # Streamlit dashboard (dynamic sidebar)
 ├── data/
-│   ├── kenya/                          # NSE market data
+│   ├── kenya/                          # NSE market data (2020-2024)
 │   ├── us/                             # US stock CSVs (5 years)
 │   └── processed/                      # Preprocessed features and sentiment
 ├── models/                             # Trained model files (.pkl)
@@ -39,6 +39,7 @@ stock-ai/
 │   └── backtesting/
 │       └── backtest.py                 # Walk-forward backtest with costs
 ├── utils/
+│   ├── tickers.py                      # Centralized ticker registry (country/sector/name)
 │   ├── features.py                     # Centralized feature definitions
 │   ├── evaluation.py                   # Walk-forward CV and metrics
 │   └── alerts.py                       # Email and Discord alerts
@@ -68,13 +69,40 @@ Walk-forward backtesting with:
 - Buy-and-hold benchmark comparison
 
 ### Dashboard
-A Streamlit web app that provides:
-- Ticker selection (US and Kenyan stocks)
+A Streamlit web app with a **dynamic sidebar** for filtering:
+- **Country filter** - US or Kenya (auto-detected from processed data)
+- **Sector filter** - Technology, Banking/Finance, Healthcare, Consumer, ETFs, etc.
+- **Ticker selector** - Shows only tickers with processed data, displayed as "AAPL - Apple"
 - Model selection (Technical or Hybrid)
 - Real-time buy/sell signals
-- Price charts
+- Price charts (live for US, historical for Kenya)
 - CSV upload for custom NSE data
 - Email and Discord alert configuration
+
+The dashboard **auto-discovers** available tickers from `features.csv` — no manual updates needed when new stocks are added.
+
+## Supported Tickers
+
+All tickers are defined in `utils/tickers.py`. To add a new ticker, edit that one file.
+
+### US Stocks (30)
+
+| Sector | Tickers |
+|---|---|
+| Technology | AAPL, MSFT, GOOGL, NVDA, TSLA, INTC, META, AMZN, CRM, ORCL, ADBE, AMD |
+| Banking / Finance | JPM, BAC, GS, MS, WFC, V, MA |
+| Healthcare | JNJ, UNH, PFE |
+| Consumer / Industrials | KO, PG, WMT, DIS, HD |
+| ETFs | SOXS, SPY, QQQ |
+
+### Kenyan Stocks (10)
+
+| Sector | Tickers |
+|---|---|
+| Telecom | SCOM (Safaricom) |
+| Banking / Finance | EQTY, KCB, ABSA, COOP, SCBK, NCBA |
+| Consumer | EABL, BAT |
+| Industrials | BAMB |
 
 ## Getting Started
 
@@ -97,6 +125,24 @@ cp .env.example .env
 ```
 
 - `NEWSAPI_KEY` - Get a free key at [newsapi.org](https://newsapi.org) (required for real sentiment data)
+
+### Adding New Tickers
+
+Edit `utils/tickers.py` and add entries to the `TICKER_REGISTRY` dict:
+```python
+"Technology": [
+    {"ticker": "AAPL", "name": "Apple"},
+    {"ticker": "NEW_TICKER", "name": "New Company"},  # Add here
+],
+```
+
+Then re-run the pipeline:
+```bash
+python scripts/fetching/fetch_us_stocks.py      # Fetch data
+python scripts/preprocessing/preprocess_data.py  # Compute features
+```
+
+The dashboard will automatically pick up the new ticker.
 
 ### Usage
 
@@ -137,14 +183,6 @@ python scripts/backtesting/backtest.py
 streamlit run app.py
 ```
 
-## Supported Tickers
-
-### US Stocks
-AAPL, MSFT, GOOGL, NVDA, TSLA, INTC, SOXS
-
-### Kenyan Stocks (NSE)
-Historical data loaded from CSV files (e.g., SCOM from nse_2020.csv).
-
 ## Alerts
 
 Stock AI supports notifications through:
@@ -169,8 +207,9 @@ GitHub Actions workflows:
 | News Data | NewsAPI |
 | Data Fetching | yfinance, BeautifulSoup |
 | Feature Engineering | Custom indicators in utils/features.py |
+| Ticker Management | Centralized registry in utils/tickers.py |
 | Backtesting | Walk-forward with transaction costs |
-| Dashboard | Streamlit |
+| Dashboard | Streamlit (dynamic sidebar with country/sector filtering) |
 | Alerts | SMTP, Discord Webhooks |
 | CI/CD | GitHub Actions |
 
