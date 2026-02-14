@@ -33,9 +33,16 @@ def load_us_data(file_path):
 def load_kenya_ticker(file_path, ticker_code):
     """
     Extract a single Kenya ticker time-series from NSE CSV.
-    Columns: DATE, CODE, NAME, Day Price, Volume, Day High, Day Low, etc.
+    Handles multiple formats:
+      - nse_2020.csv: DATE, CODE columns, date format dd-Mon-yy
+      - Stock AI Development files: DATE/Date, CODE/Code columns, date format YYYY-MM-DD
+      - nse_latest.csv: Ticker column (different format, skipped)
     """
     df = pd.read_csv(file_path)
+
+    # Normalize column names to uppercase for matching
+    col_map = {c: c.upper() for c in df.columns}
+    df = df.rename(columns=col_map)
 
     if "CODE" not in df.columns:
         print(f"    Skipping {os.path.basename(file_path)} — no CODE column (different format)")
@@ -44,24 +51,31 @@ def load_kenya_ticker(file_path, ticker_code):
     df = df[df["CODE"] == ticker_code].copy()
 
     if df.empty:
-        print(f"  No data found for Kenya ticker {ticker_code}")
         return df
 
     # Standardize column names
     rename_map = {}
     if "DATE" in df.columns:
         rename_map["DATE"] = "Date"
-    if "Day Price" in df.columns:
-        rename_map["Day Price"] = "Close"
-    if "Day High" in df.columns:
-        rename_map["Day High"] = "High"
-    if "Day Low" in df.columns:
-        rename_map["Day Low"] = "Low"
+    if "DAY PRICE" in df.columns:
+        rename_map["DAY PRICE"] = "Close"
+    if "DAY HIGH" in df.columns:
+        rename_map["DAY HIGH"] = "High"
+    if "DAY LOW" in df.columns:
+        rename_map["DAY LOW"] = "Low"
+    if "VOLUME" in df.columns:
+        rename_map["VOLUME"] = "Volume"
 
     df = df.rename(columns=rename_map)
 
     if "Date" in df.columns:
-        df["Date"] = pd.to_datetime(df["Date"], format="%d-%b-%y", errors="coerce")
+        # Try ISO format first (YYYY-MM-DD), then dd-Mon-yy
+        df["Date"] = pd.to_datetime(df["Date"], format="%Y-%m-%d", errors="coerce")
+        mask = df["Date"].isna()
+        if mask.any():
+            df.loc[mask, "Date"] = pd.to_datetime(
+                df.loc[mask, "Date"].astype(str), format="%d-%b-%y", errors="coerce"
+            )
 
     # Convert numeric columns (Volume has commas and dashes)
     for col in ["Close", "High", "Low"]:
@@ -115,8 +129,19 @@ def preprocess_data():
         print(f"    {len(df)} rows processed")
 
     # --- Process Kenya tickers ---
-    kenya_files = glob.glob("data/kenya/nse_*.csv")
-    kenya_tickers = ["SCOM"]  # Add more Kenya tickers here as needed
+    kenya_files = glob.glob("data/kenya/*.csv")
+    kenya_tickers = [
+        "SCOM",   # Safaricom
+        "EQTY",   # Equity Group
+        "KCB",    # KCB Group
+        "ABSA",   # ABSA Bank Kenya
+        "COOP",   # Co-operative Bank
+        "EABL",   # East African Breweries
+        "BAT",    # BAT Kenya
+        "BAMB",   # Bamburi Cement
+        "SCBK",   # Standard Chartered Bank Kenya
+        "NCBA",   # NCBA Group
+    ]
 
     for kenya_file in kenya_files:
         for ticker_code in kenya_tickers:
@@ -142,8 +167,13 @@ def preprocess_data():
         print("ERROR: No data processed!")
         return
 
-    # Combine all tickers
+    # Combine all tickers and remove duplicates (same Date+Ticker)
     combined = pd.concat(all_frames, ignore_index=True)
+    before = len(combined)
+    combined = combined.drop_duplicates(subset=["Date", "Ticker"], keep="first")
+    dupes = before - len(combined)
+    if dupes > 0:
+        print(f"  Removed {dupes} duplicate Date+Ticker rows")
 
     # Keep essential columns + all features
     keep_cols = ["Date", "Ticker", "Market", "Close"] + TECHNICAL_FEATURES
