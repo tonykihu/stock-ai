@@ -11,6 +11,13 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 
+# Load .env file if python-dotenv is available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 NEWSAPI_KEY = os.environ.get("NEWSAPI_KEY", "")
 BASE_URL = "https://newsapi.org/v2/everything"
 

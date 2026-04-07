@@ -130,11 +130,14 @@ def build_sidebar_filters(available_tickers, ticker_markets):
 
 
 def fetch_latest_from_features(ticker):
-    """Load the most recent row for a ticker from features.csv."""
+    """Load the most recent valid row for a ticker from features.csv."""
     if not os.path.exists(FEATURES_PATH):
         return None
     df = pd.read_csv(FEATURES_PATH)
     df = df[df["Ticker"] == ticker].copy()
+    # Drop rows with NaN Date or NaN features
+    df = df.dropna(subset=["Date", "Close"])
+    df = df.dropna(subset=TECHNICAL_FEATURES)
     if df.empty:
         return None
     df = df.sort_values("Date")
@@ -166,8 +169,24 @@ def fetch_latest_data(ticker, country):
         data = data.reset_index()
         if "Date" not in data.columns and "index" in data.columns:
             data = data.rename(columns={"index": "Date"})
+
+        if len(data) < 60:
+            # Not enough rows for SMA-50 + warmup — fall back to features.csv
+            fb = fetch_latest_from_features(ticker)
+            if fb is not None:
+                return fb
+            st.warning(f"Only {len(data)} days of data — need at least 60 for indicators.")
+            return None
+
         data = compute_features(data)
-        return data.iloc[-1:].reset_index(drop=True)
+        # Take the last row that has all features computed (skip NaN warmup rows)
+        valid = data.dropna(subset=TECHNICAL_FEATURES)
+        if valid.empty:
+            fb = fetch_latest_from_features(ticker)
+            if fb is not None:
+                return fb
+            return None
+        return valid.iloc[-1:].reset_index(drop=True)
 
 
 # --- Discover tickers and build filters ---
@@ -198,23 +217,35 @@ data = fetch_latest_data(selected_ticker, selected_country)
 # Predict
 if data is not None:
     if model_type == "Technical Only" and "technical" in models:
-        available = [f for f in TECHNICAL_FEATURES if f in data.columns]
-        features = data[available].dropna()
-        if not features.empty and len(available) == len(TECHNICAL_FEATURES):
-            prediction = models["technical"].predict(features)
-            st.metric("Signal", "BUY" if prediction[0] == 1 else "HOLD/SELL")
+        missing = [f for f in TECHNICAL_FEATURES if f not in data.columns]
+        if missing:
+            st.warning(f"Missing features: {', '.join(missing)}. Re-run preprocessing.")
         else:
-            st.warning("Not enough data to compute indicators.")
+            features = data[TECHNICAL_FEATURES].dropna()
+            if not features.empty:
+                prediction = models["technical"].predict(features)
+                st.metric("Signal", "BUY" if prediction[0] == 1 else "HOLD/SELL")
+            else:
+                st.warning(
+                    f"Feature values contain NaN for {selected_ticker}. "
+                    "Try re-running: `python scripts/preprocessing/preprocess_data.py`"
+                )
     elif model_type == "Hybrid (Technical + Sentiment)" and "hybrid" in models:
         if "sentiment_score" not in data.columns:
             data["sentiment_score"] = 0.5
-        available = [f for f in HYBRID_FEATURES if f in data.columns]
-        features = data[available].dropna()
-        if not features.empty and len(available) == len(HYBRID_FEATURES):
-            prediction = models["hybrid"].predict(features)
-            st.metric("Signal", "BUY" if prediction[0] == 1 else "HOLD/SELL")
+        missing = [f for f in HYBRID_FEATURES if f not in data.columns]
+        if missing:
+            st.warning(f"Missing features: {', '.join(missing)}. Re-run preprocessing.")
         else:
-            st.warning("Not enough data to compute indicators.")
+            features = data[HYBRID_FEATURES].dropna()
+            if not features.empty:
+                prediction = models["hybrid"].predict(features)
+                st.metric("Signal", "BUY" if prediction[0] == 1 else "HOLD/SELL")
+            else:
+                st.warning(
+                    f"Feature values contain NaN for {selected_ticker}. "
+                    "Try re-running: `python scripts/preprocessing/preprocess_data.py`"
+                )
     else:
         st.info("Model not available. Please train the model first.")
 

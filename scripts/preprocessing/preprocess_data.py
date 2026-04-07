@@ -143,7 +143,7 @@ def preprocess_data():
 
             df["Ticker"] = ticker_code
             df["Market"] = "Kenya"
-            df = df.dropna(subset=["Close"])
+            df = df.dropna(subset=["Date", "Close"])
 
             if len(df) < 60:
                 print(f"    Skipping {ticker_code} — only {len(df)} rows")
